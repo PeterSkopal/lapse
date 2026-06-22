@@ -3,7 +3,7 @@ import { AudioEngine } from './audio';
 import { buildPhases, WorkoutEngine } from './engine';
 import type { EngineState } from './engine';
 import * as store from './storage';
-import type { Phase, PhaseType, SavedSession, WorkoutSettings } from './types';
+import type { Phase, PhaseType, WorkoutSettings } from './types';
 import { ScreenWakeLock } from './wake-lock';
 
 const DEFAULTS: WorkoutSettings = {
@@ -46,7 +46,7 @@ const app = document.getElementById('app')!;
 const audio = new AudioEngine();
 const wakeLock = new ScreenWakeLock();
 
-let settings: WorkoutSettings = { ...DEFAULTS, ...(store.loadLastSettings() ?? {}) };
+let settings: WorkoutSettings = normalize(store.loadLastSettings());
 let engine: WorkoutEngine | null = null;
 
 // ---------- helpers ----------
@@ -64,6 +64,22 @@ function clampField(key: keyof WorkoutSettings, value: number): number {
   const f = FIELDS.find((x) => x.key === key)!;
   if (Number.isNaN(value)) return f.min;
   return Math.min(f.max, Math.max(f.min, Math.round(value)));
+}
+
+/**
+ * Force every field to a clamped number. Settings can originate from
+ * localStorage, so coercing here guarantees we only ever interpolate numbers
+ * into markup — no untrusted strings can reach the DOM.
+ */
+function normalize(raw: Partial<WorkoutSettings> | null | undefined): WorkoutSettings {
+  const merged = { ...DEFAULTS, ...(raw ?? {}) };
+  return {
+    laps: clampField('laps', Number(merged.laps)),
+    exercises: clampField('exercises', Number(merged.exercises)),
+    exerciseSeconds: clampField('exerciseSeconds', Number(merged.exerciseSeconds)),
+    breakSeconds: clampField('breakSeconds', Number(merged.breakSeconds)),
+    lapBreakSeconds: clampField('lapBreakSeconds', Number(merged.lapBreakSeconds)),
+  };
 }
 
 function totalDuration(s: WorkoutSettings): number {
@@ -90,10 +106,6 @@ function nextLabel(next: Phase | null): string {
 
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? '' : 's'}`;
-}
-
-function esc(value: string): string {
-  return value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
 
 // ---------- setup screen ----------
@@ -151,23 +163,49 @@ function renderSetup(): void {
 
 function renderSessions(): void {
   const host = document.getElementById('sessions')!;
+  host.replaceChildren();
+
   const sessions = store.listSessions();
   if (sessions.length === 0) {
-    host.innerHTML = `<p class="sessions__empty">No saved workouts yet.</p>`;
+    const empty = document.createElement('p');
+    empty.className = 'sessions__empty';
+    empty.textContent = 'No saved workouts yet.';
+    host.append(empty);
     return;
   }
-  host.innerHTML = sessions
-    .map(
-      (s: SavedSession) => `
-      <div class="session" data-id="${s.id}" role="button" tabindex="0">
-        <div class="session__info">
-          <span class="session__name">${esc(s.name)}</span>
-          <span class="session__meta">${sessionSummary(s.settings)}</span>
-        </div>
-        <button type="button" class="iconbtn session__del" data-del="${s.id}" aria-label="Delete ${esc(s.name)}">✕</button>
-      </div>`,
-    )
-    .join('');
+
+  // Build nodes with textContent/setAttribute so saved names (the only
+  // free-text input) are never interpreted as HTML.
+  for (const s of sessions) {
+    const row = document.createElement('div');
+    row.className = 'session';
+    row.dataset.id = s.id;
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+
+    const info = document.createElement('div');
+    info.className = 'session__info';
+
+    const name = document.createElement('span');
+    name.className = 'session__name';
+    name.textContent = s.name;
+
+    const meta = document.createElement('span');
+    meta.className = 'session__meta';
+    meta.textContent = sessionSummary(s.settings);
+
+    info.append(name, meta);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'iconbtn session__del';
+    del.dataset.del = s.id;
+    del.setAttribute('aria-label', `Delete ${s.name}`);
+    del.textContent = '✕';
+
+    row.append(info, del);
+    host.append(row);
+  }
 }
 
 function wireSetup(): void {
@@ -261,7 +299,7 @@ function wireSetup(): void {
 function loadSession(id: string): void {
   const found = store.listSessions().find((s) => s.id === id);
   if (!found) return;
-  settings = { ...found.settings };
+  settings = normalize(found.settings);
   for (const f of FIELDS) {
     const input = document.getElementById(`f-${f.key}`) as HTMLInputElement | null;
     if (input) input.value = String(settings[f.key]);
