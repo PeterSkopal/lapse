@@ -1,0 +1,23 @@
+version: 2
+updates:
+  # npm packages (all dev-only here, but kept current and patched)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # Roll routine minor/patch bumps into a single weekly PR to cut noise.
+      # Major bumps and security fixes still come as their own PRs.
+      npm-minor-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+
+  # Keep the GitHub Actions in our workflows up to date too.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
