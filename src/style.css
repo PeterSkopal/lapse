@@ -44,6 +44,8 @@ body {
   font-size: 16px;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   transition: --accent 0.5s ease;
   overflow-x: hidden;
 }
@@ -158,12 +160,14 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.6rem;
   padding: 0.95rem 0;
   border-bottom: 1px solid var(--border);
 }
 .field:last-of-type { border-bottom: none; }
 .field__label {
+  flex: 1;
+  min-width: 0;
   font-size: 0.98rem;
   color: var(--text);
 }
@@ -171,16 +175,18 @@ input {
 .stepper {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  flex-shrink: 0;
 }
 .stepper__btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 11px;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
-  font-size: 1.3rem;
+  font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
@@ -191,16 +197,19 @@ input {
 .stepper__value {
   display: inline-flex;
   align-items: baseline;
-  justify-content: center;
-  min-width: 64px;
+  justify-content: flex-end;
+  width: 62px;
   gap: 2px;
+  overflow: hidden;
 }
 .stepper__input {
-  width: 2.6ch;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   border: none;
   background: transparent;
   text-align: right;
-  font-size: 1.25rem;
+  font-size: 1.05rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   -moz-appearance: textfield;
@@ -209,7 +218,7 @@ input {
 .stepper__input::-webkit-outer-spin-button,
 .stepper__input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .stepper__input:focus { outline: none; color: var(--accent); }
-.stepper__unit { color: var(--muted); font-size: 0.9rem; }
+.stepper__unit { flex-shrink: 0; color: var(--muted); font-size: 0.8rem; }
 
 .estimate {
   display: flex;
