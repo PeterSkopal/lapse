@@ -172,8 +172,13 @@ export class WorkoutEngine {
       : Math.max(0, this.phaseEndAt - now());
     const remaining = phase.type === 'done' ? 0 : Math.ceil(remainingMs / 1000);
     const elapsedInPhase = phase.duration - remainingMs / 1000;
-    const elapsedTotal = this.durationsBefore[this.idx] + Math.max(0, elapsedInPhase);
     const progress = phase.duration > 0 ? Math.min(1, Math.max(0, elapsedInPhase / phase.duration)) : 1;
+    // Derive elapsed from the same whole-second `remaining` the countdown
+    // shows, so the top timer and the centre countdown tick over together.
+    const elapsedTotal = Math.min(
+      this.totalDuration,
+      this.durationsBefore[this.idx] + (phase.duration - remaining),
+    );
 
     this.cb.onTick({
       phase,
@@ -181,7 +186,7 @@ export class WorkoutEngine {
       phaseIndex: this.idx,
       remaining,
       progress,
-      elapsedTotal: Math.round(Math.min(elapsedTotal, this.totalDuration)),
+      elapsedTotal,
       totalDuration: this.totalDuration,
       paused: this.paused,
     });
