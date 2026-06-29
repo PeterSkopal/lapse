@@ -1,16 +1,21 @@
 /**
  * Synthesised interval cues using the Web Audio API — no audio files, fully
- * offline, and tuned to be distinct from one another:
+ * offline, and tuned to be distinct from one another AND to cut through music
+ * playing in the background:
  *   • workStart  — bright rising two-note "go"
- *   • restStart  — soft descending single note "ease off"
- *   • lapEnd     — warm three-note chime, a lap is complete
- *   • countdown  — short low tick for the final 3 seconds
+ *   • restStart  — softer descending two-note "ease off"
+ *   • lapEnd     — three-note rising chime, a lap is complete
+ *   • countdown  — crisp high tick for the final 3 seconds
  *   • finish     — celebratory rising arpeggio
+ *
+ * Loudness/clarity: cues use square/triangle waves (rich in harmonics, so they
+ * stand out against music far better than pure sines) at a healthy level, fed
+ * through a brick-wall limiter so the higher level never clips or distorts.
  *
  * Note on "ducking other apps to 50%": the web platform does not expose
  * system-wide audio ducking to pages/PWAs (only native apps can lower other
- * apps' output), so it cannot be implemented here. Cues are kept short so they
- * don't fight with any music you're playing.
+ * apps' output), so the cues can't quiet your music — they're made to be heard
+ * over it instead.
  */
 export class AudioEngine {
   private ctx: AudioContext | null = null;
@@ -20,11 +25,24 @@ export class AudioEngine {
   /** Must be called from a user gesture (e.g. the Start button) on iOS. */
   unlock(): void {
     if (!this.ctx) {
-      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const Ctor =
+        window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       this.ctx = new Ctor();
+
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.9;
-      this.master.connect(this.ctx.destination);
+      this.master.gain.value = 1;
+
+      // Brick-wall-ish limiter: lets us drive the cues loud for cut-through
+      // while catching peaks (and overlapping notes) so nothing clips/distorts.
+      const limiter = this.ctx.createDynamicsCompressor();
+      limiter.threshold.value = -3;
+      limiter.knee.value = 0;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.003;
+      limiter.release.value = 0.12;
+
+      this.master.connect(limiter);
+      limiter.connect(this.ctx.destination);
     }
     void this.ctx.resume();
   }
@@ -37,16 +55,16 @@ export class AudioEngine {
     return this.muted;
   }
 
-  private note(freq: number, start: number, dur: number, gain = 0.6, type: OscillatorType = 'sine'): void {
+  private note(freq: number, start: number, dur: number, peak = 0.8, type: OscillatorType = 'square'): void {
     if (!this.ctx || !this.master) return;
     const osc = this.ctx.createOscillator();
     const env = this.ctx.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, start);
 
-    // Soft attack + exponential release to avoid clicks.
+    // Fast attack for punch, exponential release to avoid clicks.
     env.gain.setValueAtTime(0.0001, start);
-    env.gain.exponentialRampToValueAtTime(gain, start + 0.012);
+    env.gain.exponentialRampToValueAtTime(peak, start + 0.008);
     env.gain.exponentialRampToValueAtTime(0.0001, start + dur);
 
     osc.connect(env);
@@ -61,41 +79,41 @@ export class AudioEngine {
     builder(this.ctx.currentTime);
   }
 
-  /** Exercise / interval begins. */
+  /** Exercise / interval begins — bright, assertive rising beep. */
   workStart(): void {
     this.play((t) => {
-      this.note(660, t, 0.14, 0.5, 'triangle');
-      this.note(990, t + 0.13, 0.22, 0.55, 'triangle');
+      this.note(784, t, 0.14, 0.85, 'square');
+      this.note(1175, t + 0.12, 0.26, 0.9, 'square');
     });
   }
 
-  /** Break between exercises begins. */
+  /** Break between exercises begins — mellower but still cuts through. */
   restStart(): void {
     this.play((t) => {
-      this.note(523.25, t, 0.16, 0.4, 'sine');
-      this.note(392, t + 0.14, 0.3, 0.4, 'sine');
+      this.note(587.33, t, 0.18, 0.7, 'triangle');
+      this.note(440, t + 0.16, 0.34, 0.7, 'triangle');
     });
   }
 
-  /** A lap has finished. */
+  /** A lap has finished — three-note rising chime. */
   lapEnd(): void {
     this.play((t) => {
-      this.note(523.25, t, 0.2, 0.4, 'sine');
-      this.note(659.25, t + 0.16, 0.2, 0.4, 'sine');
-      this.note(783.99, t + 0.32, 0.42, 0.45, 'sine');
+      this.note(659.25, t, 0.2, 0.75, 'triangle');
+      this.note(880, t + 0.17, 0.2, 0.78, 'triangle');
+      this.note(1318.51, t + 0.34, 0.46, 0.85, 'square');
     });
   }
 
-  /** Soft tick during the final 3-2-1 of a phase. */
+  /** Crisp high tick during the final 3-2-1 of a phase. */
   countdownTick(): void {
-    this.play((t) => this.note(440, t, 0.07, 0.3, 'square'));
+    this.play((t) => this.note(987.77, t, 0.09, 0.6, 'square'));
   }
 
-  /** The whole workout is complete. */
+  /** The whole workout is complete — rising arpeggio. */
   finish(): void {
     this.play((t) => {
-      const seq = [523.25, 659.25, 783.99, 1046.5];
-      seq.forEach((f, i) => this.note(f, t + i * 0.13, 0.3, 0.5, 'triangle'));
+      const seq = [659.25, 880, 1174.66, 1567.98];
+      seq.forEach((f, i) => this.note(f, t + i * 0.13, 0.34, 0.82, 'square'));
     });
   }
 }
