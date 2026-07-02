@@ -51,8 +51,8 @@ export interface EngineCallbacks {
   onTick: (state: EngineState) => void;
   /** Fired when a new phase begins. Use to trigger sounds. */
   onPhaseEnter: (phase: Phase) => void;
-  /** Fired once per second during the final 3 s of a timed phase. */
-  onCountdownTick: (secondsLeft: number) => void;
+  /** Fired once per whole second of a timed phase, with the current phase. */
+  onCountdownTick: (secondsLeft: number, phase: Phase) => void;
   onComplete: () => void;
 }
 
@@ -158,8 +158,8 @@ export class WorkoutEngine {
     const remainingSec = Math.ceil(remainingMs / 1000);
     if (remainingSec !== this.lastCountdownSecond) {
       this.lastCountdownSecond = remainingSec;
-      if (remainingSec <= 3 && remainingSec >= 1) {
-        this.cb.onCountdownTick(remainingSec);
+      if (remainingSec >= 1) {
+        this.cb.onCountdownTick(remainingSec, phase);
       }
     }
     this.emit();

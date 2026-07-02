@@ -5,7 +5,9 @@
  *   • workStart  — bright rising two-note "go"
  *   • restStart  — softer descending two-note "ease off"
  *   • lapEnd     — three-note rising chime, a lap is complete
- *   • countdown  — crisp high tick for the final 3 seconds
+ *   • knock      — woody double-knock heads-up (15 s left of an exercise)
+ *   • countdown  — crisp high tick for the final 3-2 seconds
+ *   • pling      — bright bell, the final note as an exercise ends
  *   • finish     — celebratory rising arpeggio
  *
  * Loudness/clarity: cues use square/triangle waves (rich in harmonics, so they
@@ -73,6 +75,40 @@ export class AudioEngine {
     osc.stop(start + dur + 0.02);
   }
 
+  /** A short filtered-noise burst — the building block for the knock. */
+  private noiseBurst(start: number, dur: number, peak: number, freq: number, q: number): void {
+    if (!this.ctx || !this.master) return;
+    const len = Math.floor(this.ctx.sampleRate * (dur + 0.02));
+    const buffer = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = freq;
+    filter.Q.value = q;
+
+    const env = this.ctx.createGain();
+    env.gain.setValueAtTime(0.0001, start);
+    env.gain.exponentialRampToValueAtTime(peak, start + 0.003);
+    env.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+
+    src.connect(filter);
+    filter.connect(env);
+    env.connect(this.master);
+    src.start(start);
+    src.stop(start + dur + 0.02);
+  }
+
+  /** One knock: a bright knuckle-tap, a wooden body, and a low thud for weight. */
+  private oneKnock(t: number): void {
+    this.noiseBurst(t, 0.018, 1.2, 2400, 0.8);
+    this.noiseBurst(t, 0.06, 2.5, 210, 1.1);
+    this.note(120, t, 0.09, 0.5, 'sine');
+  }
+
   private play(builder: (t: number) => void): void {
     if (this.muted || !this.ctx) return;
     if (this.ctx.state === 'suspended') void this.ctx.resume();
@@ -104,9 +140,26 @@ export class AudioEngine {
     });
   }
 
-  /** Crisp high tick during the final 3-2-1 of a phase. */
+  /** Woody double-knock — "final stretch" heads-up mid-exercise. */
+  knock(): void {
+    this.play((t) => {
+      this.oneKnock(t);
+      this.oneKnock(t + 0.15);
+    });
+  }
+
+  /** Crisp high tick during the final count-in of a phase. */
   countdownTick(): void {
     this.play((t) => this.note(987.77, t, 0.09, 0.6, 'square'));
+  }
+
+  /** Bright bell "pling" — the final note as an exercise ends. */
+  pling(): void {
+    this.play((t) => {
+      this.note(1567.98, t, 0.65, 0.85, 'sine');
+      this.note(2349.32, t, 0.45, 0.3, 'sine');
+      this.note(3135.96, t, 0.28, 0.14, 'sine');
+    });
   }
 
   /** The whole workout is complete — rising arpeggio. */

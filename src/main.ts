@@ -321,7 +321,15 @@ function startWorkout(s: WorkoutSettings): void {
       else if (phase.type === 'rest') audio.restStart();
       else if (phase.type === 'lapRest') audio.lapEnd();
     },
-    onCountdownTick: () => audio.countdownTick(),
+    onCountdownTick: (secondsLeft, phase) => {
+      if (phase.type === 'work' && secondsLeft === 15 && phase.duration > 15) {
+        audio.knock();
+      } else if (secondsLeft <= 3) {
+        // Final note of an exercise is a bell; other phases keep the tick.
+        if (phase.type === 'work' && secondsLeft === 1) audio.pling();
+        else audio.countdownTick();
+      }
+    },
     onComplete: () => {
       audio.finish();
       void wakeLock.disable();
